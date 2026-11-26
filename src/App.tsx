@@ -12,6 +12,7 @@ import { Header } from './components/Header';
 import { ProductModal } from './components/ProductModal';
 import { CartDrawer } from './components/CartDrawer';
 import { ChannelModal } from './components/ChannelModal';
+import { N8nChatWidget } from './components/N8nChatWidget';
 
 const CART_STORAGE_KEY = 'kalara_distro_cart_v1';
 
@@ -553,7 +554,7 @@ export default function App() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-md right-md z-40 bg-primary text-on-primary border border-outline px-md py-sm flex items-center gap-md"
+          className="fixed bottom-20 right-md z-40 bg-primary text-on-primary border border-outline px-md py-sm flex items-center gap-md"
         >
           <span className="font-label text-label-sm uppercase">{toastMessage}</span>
           <button
@@ -568,6 +569,13 @@ export default function App() {
           </button>
         </div>
       )}
+
+      {/* Self-Hosted n8n AI Chatbot Widget */}
+      <N8nChatWidget
+        categories={CATALOG_CATEGORIES}
+        cart={cart}
+        onSelectCategory={handleOpenCategory}
+      />
 
       {/* Interactive Modals & Drawers */}
       <ProductModal
