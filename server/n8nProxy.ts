@@ -1,3 +1,5 @@
+import { askKalaraGemini, isGeminiConfigured } from './geminiAssistant.ts';
+
 export interface N8nChatContext {
   store: string;
   cartItemCount: number;
@@ -10,15 +12,37 @@ export interface N8nChatRequestBody {
   context?: N8nChatContext;
 }
 
+export type ChatEngine = 'n8n' | 'gemini' | 'none';
+
 export interface N8nProxyResult {
   reply: string;
   sessionId: string;
+  engine: 'n8n' | 'gemini';
+}
+
+export interface N8nStatusInfo {
+  configured: boolean;
+  engine: ChatEngine;
+  isTestWebhook?: boolean;
+  configError?: string;
 }
 
 const SESSION_ID_REGEX = /^[a-zA-Z0-9_-]{4,128}$/;
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_CART_SUMMARY_ITEMS = 20;
 const REQUEST_TIMEOUT_MS = 30_000;
+
+function cleanEnvValue(value: string | undefined): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
 
 function isBlockedMetadataHost(hostname: string): boolean {
   const lower = hostname.toLowerCase();
@@ -32,7 +56,10 @@ function isBlockedMetadataHost(hostname: string): boolean {
 }
 
 export function getValidatedWebhookUrl(): { url: URL | null; error?: string } {
-  const raw = process.env.N8N_WEBHOOK_URL?.trim();
+  const raw =
+    cleanEnvValue(process.env.N8N_WEBHOOK_URL) ||
+    cleanEnvValue(process.env.N8N_CLOUD_WEBHOOK_URL);
+
   if (!raw) {
     return { url: null };
   }
@@ -43,14 +70,15 @@ export function getValidatedWebhookUrl(): { url: URL | null; error?: string } {
   } catch {
     return {
       url: null,
-      error: 'Format N8N_WEBHOOK_URL di konfigurasi server tidak valid.',
+      error:
+        'Format N8N_WEBHOOK_URL tidak valid. Pastikan berisi URL lengkap, misal: https://workspace.app.n8n.cloud/webhook/kalara-ai-chat',
     };
   }
 
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
     return {
       url: null,
-      error: 'N8N_WEBHOOK_URL harus menggunakan protokol http:// atau https://.',
+      error: 'N8N_WEBHOOK_URL harus menggunakan protokol https:// (n8n Cloud) atau http://.',
     };
   }
 
@@ -62,6 +90,28 @@ export function getValidatedWebhookUrl(): { url: URL | null; error?: string } {
   }
 
   return { url: parsed };
+}
+
+export function getN8nStatusInfo(): N8nStatusInfo {
+  const { url, error } = getValidatedWebhookUrl();
+  const isTestWebhook = url ? url.pathname.includes('/webhook-test/') : false;
+  const geminiReady = isGeminiConfigured();
+
+  const engine: ChatEngine = url ? 'n8n' : geminiReady ? 'gemini' : 'none';
+
+  return {
+    configured: Boolean(url),
+    engine,
+    ...(isTestWebhook ? { isTestWebhook: true } : {}),
+    ...(error
+      ? { configError: error }
+      : isTestWebhook
+        ? {
+            configError:
+              'URL saat ini memakai /webhook-test/ (Test URL). Ganti ke Production URL (/webhook/...) dan aktifkan toggle Active di n8n Cloud agar selalu aktif.',
+          }
+        : {}),
+  };
 }
 
 export function validateChatPayload(body: unknown): {
@@ -164,6 +214,23 @@ function extractReplyFromUnknown(payload: unknown): string | null {
   return null;
 }
 
+function extractErrorHint(rawText: string): string {
+  const trimmed = rawText.trim();
+  if (!trimmed) return '';
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    const msg =
+      typeof parsed.message === 'string'
+        ? parsed.message
+        : typeof parsed.error === 'string'
+          ? parsed.error
+          : '';
+    return msg.trim().slice(0, 140);
+  } catch {
+    return trimmed.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+  }
+}
+
 export async function forwardChatToN8n(
   payload: N8nChatRequestBody
 ): Promise<{ result?: N8nProxyResult; status: number; error?: string }> {
@@ -171,11 +238,29 @@ export async function forwardChatToN8n(
   if (configError) {
     return { status: 500, error: configError };
   }
+
+  // If n8n Cloud webhook URL is not configured yet, run the built-in Gemini AI assistant
+  // when GEMINI_API_KEY is available so the chatbot works out of the box.
   if (!url) {
+    if (isGeminiConfigured()) {
+      const aiRes = await askKalaraGemini(payload);
+      if (!aiRes.reply) {
+        return { status: aiRes.status, error: aiRes.error };
+      }
+      return {
+        status: 200,
+        result: {
+          reply: aiRes.reply,
+          sessionId: payload.sessionId,
+          engine: 'gemini',
+        },
+      };
+    }
+
     return {
       status: 503,
       error:
-        'Webhook n8n belum dikonfigurasi. Tambahkan N8N_WEBHOOK_URL di Settings > Secrets atau environment variable server.',
+        'Webhook n8n Cloud belum dikonfigurasi. Tambahkan N8N_WEBHOOK_URL di Settings > Secrets atau Environment Variables Vercel.',
     };
   }
 
@@ -184,8 +269,8 @@ export async function forwardChatToN8n(
     Accept: 'application/json, text/plain',
   };
 
-  const authHeaderName = process.env.N8N_AUTH_HEADER_NAME?.trim();
-  const authHeaderValue = process.env.N8N_AUTH_HEADER_VALUE?.trim();
+  const authHeaderName = cleanEnvValue(process.env.N8N_AUTH_HEADER_NAME);
+  const authHeaderValue = cleanEnvValue(process.env.N8N_AUTH_HEADER_VALUE);
   if (
     authHeaderName &&
     authHeaderValue &&
@@ -220,9 +305,29 @@ export async function forwardChatToN8n(
     const rawText = await upstream.text();
 
     if (!upstream.ok) {
+      const hint = extractErrorHint(rawText);
+      const isTestPath = url.pathname.includes('/webhook-test/');
+
+      if (upstream.status === 404) {
+        return {
+          status: 502,
+          error: isTestPath
+            ? 'n8n merespons 404 (Test URL tidak aktif). Ganti N8N_WEBHOOK_URL ke Production URL (/webhook/...) dan nyalakan toggle Active di n8n Cloud.'
+            : 'n8n merespons 404 (Webhook tidak ditemukan). Pastikan workflow sudah di-Save, toggle Active menyala hijau, dan method Webhook adalah POST.',
+        };
+      }
+
+      if (upstream.status === 401 || upstream.status === 403) {
+        return {
+          status: 502,
+          error:
+            'Autentikasi webhook n8n ditolak (401/403). Periksa N8N_AUTH_HEADER_NAME dan N8N_AUTH_HEADER_VALUE agar cocok dengan Header Auth di n8n.',
+        };
+      }
+
       return {
         status: 502,
-        error: `Workflow n8n merespons dengan status ${upstream.status}. Pastikan workflow aktif (Active) dan node Respond to Webhook / Chat Trigger berjalan normal.`,
+        error: `Workflow n8n merespons status ${upstream.status}.${hint ? ` Detail: ${hint}` : ' Periksa Executions log di n8n Cloud (mis. kredensial AI Model atau node Respond to Webhook).'}`,
       };
     }
 
@@ -246,7 +351,7 @@ export async function forwardChatToN8n(
       return {
         status: 502,
         error:
-          'Workflow n8n berhasil terpanggil tetapi tidak mengembalikan teks balasan (field output/reply/text kosong).',
+          'Webhook n8n merespons kosong. Pastikan node Webhook menggunakan Respond = "Using \'Respond to Webhook\' Node" dan mengembalikan JSON { "output": "..." }.',
       };
     }
 
@@ -255,20 +360,21 @@ export async function forwardChatToN8n(
       result: {
         reply,
         sessionId: payload.sessionId,
+        engine: 'n8n',
       },
     };
   } catch (err) {
     if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
       return {
         status: 504,
-        error: 'Koneksi ke server n8n melewati batas waktu (30 detik). Silakan coba lagi.',
+        error: 'Koneksi ke n8n Cloud melewati batas waktu (30 detik). Silakan coba lagi.',
       };
     }
 
     return {
       status: 502,
       error:
-        'Tidak dapat terhubung ke server n8n self-hosted. Pastikan URL webhook dapat diakses secara publik (HTTPS) dan server n8n sedang online.',
+        'Tidak dapat terhubung ke server n8n Cloud. Pastikan Production Webhook URL benar dan workflow dalam status Active.',
     };
   }
 }

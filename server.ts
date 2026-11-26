@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import {
   forwardChatToN8n,
-  getValidatedWebhookUrl,
+  getN8nStatusInfo,
   validateChatPayload,
 } from './server/n8nProxy.ts';
 
@@ -22,11 +22,7 @@ async function startServer() {
   app.use(express.json({ limit: '32kb' }));
 
   app.get('/api/n8n/status', (_req, res) => {
-    const { url, error } = getValidatedWebhookUrl();
-    res.json({
-      configured: Boolean(url),
-      ...(error ? { configError: error } : {}),
-    });
+    res.json(getN8nStatusInfo());
   });
 
   app.post('/api/n8n/chat', async (req, res) => {

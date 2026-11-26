@@ -80,7 +80,7 @@ function createWelcomeMessage(): ChatMessage {
   return {
     id: 'welcome-msg',
     role: 'assistant',
-    text: 'Halo! Saya KALARA AI Assistant yang terhubung ke workflow n8n. Tanyakan rekomendasi outfit, perbandingan bahan, panduan ukuran S–XXL, atau info toko Bandung.',
+    text: 'Halo! Saya KALARA AI Assistant. Tanyakan rekomendasi outfit, perbandingan bahan, panduan ukuran S–XXL, atau info toko Bandung.',
     timestamp: formatNow(),
   };
 }
@@ -143,6 +143,7 @@ export function N8nChatWidget({ categories, cart, onSelectCategory }: N8nChatWid
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [n8nConfigured, setN8nConfigured] = useState<boolean | null>(null);
+  const [activeEngine, setActiveEngine] = useState<'n8n' | 'gemini' | 'none' | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [copiedPayload, setCopiedPayload] = useState(false);
@@ -166,18 +167,27 @@ export function N8nChatWidget({ categories, cart, onSelectCategory }: N8nChatWid
     let cancelled = false;
     fetch('/api/n8n/status')
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Status check failed'))))
-      .then((data: { configured?: boolean; configError?: string }) => {
-        if (cancelled) return;
-        const configured = Boolean(data.configured);
-        setN8nConfigured(configured);
-        setConfigError(data.configError ?? null);
-        if (!configured) {
-          setShowSetupGuide(true);
+      .then(
+        (data: {
+          configured?: boolean;
+          engine?: 'n8n' | 'gemini' | 'none';
+          configError?: string;
+        }) => {
+          if (cancelled) return;
+          const configured = Boolean(data.configured);
+          const engine = data.engine ?? (configured ? 'n8n' : 'none');
+          setN8nConfigured(configured);
+          setActiveEngine(engine);
+          setConfigError(data.configError ?? null);
+          if (engine === 'none') {
+            setShowSetupGuide(true);
+          }
         }
-      })
+      )
       .catch(() => {
         if (!cancelled) {
           setN8nConfigured(false);
+          setActiveEngine('none');
         }
       });
 
@@ -244,12 +254,14 @@ export function N8nChatWidget({ categories, cart, onSelectCategory }: N8nChatWid
 
       const data = (await response.json().catch(() => ({}))) as {
         reply?: string;
+        engine?: 'n8n' | 'gemini';
         error?: string;
       };
 
       if (!response.ok || !data.reply) {
         if (response.status === 503) {
           setN8nConfigured(false);
+          setActiveEngine('none');
           setShowSetupGuide(true);
         }
         setMessages((prev) => [
@@ -259,7 +271,7 @@ export function N8nChatWidget({ categories, cart, onSelectCategory }: N8nChatWid
             role: 'error',
             text:
               data.error ??
-              'Gagal mendapatkan balasan dari workflow n8n. Periksa kembali koneksi server n8n kamu.',
+              'Gagal mendapatkan balasan dari server AI. Silakan coba lagi beberapa saat.',
             timestamp: formatNow(),
             retryPrompt: trimmed,
           },
@@ -267,7 +279,10 @@ export function N8nChatWidget({ categories, cart, onSelectCategory }: N8nChatWid
         return;
       }
 
-      setN8nConfigured(true);
+      if (data.engine) {
+        setActiveEngine(data.engine);
+        setN8nConfigured(data.engine === 'n8n');
+      }
       setMessages((prev) => [
         ...prev,
         {
@@ -338,7 +353,11 @@ export function N8nChatWidget({ categories, cart, onSelectCategory }: N8nChatWid
           <div className="flex items-center justify-between px-md py-sm border-b border-outline bg-primary text-on-primary">
             <div className="flex flex-col min-w-0">
               <span className="font-label text-label-sm text-on-primary/75 uppercase">
-                N8N SELF-HOSTED AI
+                {activeEngine === 'n8n'
+                  ? 'N8N CLOUD AI'
+                  : activeEngine === 'gemini'
+                    ? 'AI AKTIF · SIAP N8N CLOUD'
+                    : 'N8N CLOUD AI'}
               </span>
               <h2 className="font-headline text-title-md text-on-primary uppercase truncate">
                 KALARA AI ASSISTANT
@@ -377,15 +396,19 @@ export function N8nChatWidget({ categories, cart, onSelectCategory }: N8nChatWid
             </div>
           </div>
 
-          {/* Self-Hosted n8n Integration Setup Guide Drawer */}
+          {/* n8n Cloud Integration Setup Guide Drawer */}
           {showSetupGuide && (
-            <div className="border-b border-outline bg-surface-container p-md flex flex-col gap-sm max-h-64 overflow-y-auto">
+            <div className="border-b border-outline bg-surface-container p-md flex flex-col gap-sm max-h-72 overflow-y-auto">
               <div className="flex items-center justify-between gap-sm">
                 <span className="font-label text-label-sm text-on-surface uppercase">
-                  KONFIGURASI N8N SELF-HOSTED
+                  INTEGRASI N8N CLOUD
                 </span>
                 <span className="font-label text-label-sm uppercase text-on-surface-variant">
-                  {n8nConfigured ? 'TERKONFIGURASI' : 'BELUM DISETEL'}
+                  {n8nConfigured
+                    ? 'N8N TERHUBUNG'
+                    : activeEngine === 'gemini'
+                      ? 'AI BAWAAN AKTIF'
+                      : 'BELUM DISETEL'}
                 </span>
               </div>
 
@@ -393,32 +416,46 @@ export function N8nChatWidget({ categories, cart, onSelectCategory }: N8nChatWid
                 <p className="font-body text-label-md text-accent">{configError}</p>
               )}
 
-              <p className="font-body text-label-md text-on-surface-variant">
-                Import template workflow ke n8n self-hosted kamu, aktifkan workflow, lalu masukkan Production Webhook URL ke <strong>Settings &gt; Secrets</strong> (atau Environment Variables Vercel):
-              </p>
-
               <a
-                href="/kalara-distro-n8n-workflow.json"
-                download="kalara-distro-n8n-workflow.json"
+                href="/kalara-distro-n8n-cloud-workflow.json"
+                download="kalara-distro-n8n-cloud-workflow.json"
                 className="w-full bg-accent text-on-accent border border-outline px-md py-sm font-label text-label-sm uppercase inline-flex items-center justify-center gap-xs hover:bg-primary hover:text-on-primary transition-colors duration-snap"
               >
                 <Download className="w-4 h-4 shrink-0" aria-hidden="true" />
-                <span>DOWNLOAD WORKFLOW N8N (.JSON)</span>
+                <span>DOWNLOAD TEMPLATE N8N CLOUD (.JSON)</span>
               </a>
 
+              <ol className="list-decimal pl-md font-body text-label-md text-on-surface-variant flex flex-col gap-xs">
+                <li>
+                  Login ke <strong>app.n8n.cloud</strong>, buat workflow baru, klik ikon menu (⋮) → <strong>Import from File</strong> lalu pilih file JSON di atas.
+                </li>
+                <li>
+                  Buka node <strong>Google Gemini Chat Model</strong> dan hubungkan API Key kamu (atau ganti dengan OpenAI/Groq).
+                </li>
+                <li>
+                  Klik <strong>Save</strong> lalu aktifkan toggle <strong>Active</strong> di pojok kanan atas.
+                </li>
+                <li>
+                  Buka node <strong>Webhook KALARA Chat</strong> → tab <strong>Production URL</strong> → salin URL <code>https://&lt;workspace&gt;.app.n8n.cloud/webhook/kalara-ai-chat</code>.
+                </li>
+                <li>
+                  Simpan URL tersebut di <strong>Settings &gt; Secrets</strong> (atau Vercel Env Vars) dengan nama <code>N8N_WEBHOOK_URL</code>.
+                </li>
+              </ol>
+
               <div className="border border-outline bg-surface p-sm font-label text-label-sm text-on-surface flex flex-col gap-xs">
-                <span>N8N_WEBHOOK_URL=https://n8n.domain.com/webhook/...</span>
+                <span>N8N_WEBHOOK_URL=https://workspace.app.n8n.cloud/webhook/kalara-ai-chat</span>
                 <span className="text-on-surface-variant">
-                  N8N_AUTH_HEADER_NAME (opsional, mis. Authorization)
+                  N8N_AUTH_HEADER_NAME (opsional jika pakai Header Auth)
                 </span>
                 <span className="text-on-surface-variant">
-                  N8N_AUTH_HEADER_VALUE (opsional, mis. Bearer token)
+                  N8N_AUTH_HEADER_VALUE (opsional, token Header Auth)
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="font-label text-label-sm text-on-surface-variant uppercase">
-                  PAYLOAD POST KE N8N (JSON)
+                  PAYLOAD POST KE N8N CLOUD
                 </span>
                 <button
                   type="button"
@@ -442,10 +479,6 @@ export function N8nChatWidget({ categories, cart, onSelectCategory }: N8nChatWid
               <pre className="border border-outline-subtle bg-surface p-sm font-label text-[11px] leading-4 text-on-surface overflow-x-auto">
                 {SAMPLE_N8N_PAYLOAD}
               </pre>
-
-              <p className="font-body text-label-sm text-on-surface-variant">
-                Kompatibel dengan node <strong>Chat Trigger</strong> maupun <strong>Webhook + AI Agent + Respond to Webhook</strong> (mengembalikan JSON <code>{`{"output": "..."}`}</code> atau teks biasa).
-              </p>
             </div>
           )}
 
@@ -549,7 +582,9 @@ export function N8nChatWidget({ categories, cart, onSelectCategory }: N8nChatWid
             {isSending && (
               <div className="flex flex-col items-start gap-xs">
                 <span className="font-label text-[11px] text-on-surface-variant uppercase">
-                  KALARA AI · MEMPROSES DI N8N
+                  {activeEngine === 'n8n'
+                    ? 'KALARA AI · MEMPROSES DI N8N'
+                    : 'KALARA AI · MEMPROSES'}
                 </span>
                 <div className="px-md py-sm border border-outline bg-surface-container font-label text-label-sm text-on-surface uppercase">
                   MENGETIK BALASAN...

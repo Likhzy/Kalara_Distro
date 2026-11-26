@@ -52,7 +52,7 @@
     {
       "parameters": {
         "sessionIdType": "customKey",
-        "sessionKey": "={{ $('Webhook KALARA Chat').item.json.body.sessionId }}",
+        "sessionKey": "={{ $('Webhook KALARA Chat').first().json.body?.sessionId || 'kalara-default-session' }}",
         "contextWindowLength": 10
       },
       "id": "a1b2c3d4-4444-4000-8000-000000000004",
@@ -67,7 +67,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"output\": $json.output, \"sessionId\": $('Webhook KALARA Chat').item.json.body.sessionId } }}",
+        "responseBody": "={{ { \"output\": $json.output, \"sessionId\": $('Webhook KALARA Chat').first().json.body?.sessionId || '' } }}",
         "options": {}
       },
       "id": "a1b2c3d4-5555-4000-8000-000000000005",
