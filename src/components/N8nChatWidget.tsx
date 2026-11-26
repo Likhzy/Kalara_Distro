@@ -3,6 +3,7 @@ import {
   ArrowUpRight,
   Check,
   Copy,
+  Download,
   MessageSquare,
   RotateCcw,
   Send,
@@ -393,8 +394,17 @@ export function N8nChatWidget({ categories, cart, onSelectCategory }: N8nChatWid
               )}
 
               <p className="font-body text-label-md text-on-surface-variant">
-                Tambahkan environment variable berikut di <strong>Settings &gt; Secrets</strong> (atau Vercel Environment Variables) agar proxy server <code>/api/n8n/chat</code> terhubung ke workflow n8n kamu:
+                Import template workflow ke n8n self-hosted kamu, aktifkan workflow, lalu masukkan Production Webhook URL ke <strong>Settings &gt; Secrets</strong> (atau Environment Variables Vercel):
               </p>
+
+              <a
+                href="/kalara-distro-n8n-workflow.json"
+                download="kalara-distro-n8n-workflow.json"
+                className="w-full bg-accent text-on-accent border border-outline px-md py-sm font-label text-label-sm uppercase inline-flex items-center justify-center gap-xs hover:bg-primary hover:text-on-primary transition-colors duration-snap"
+              >
+                <Download className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <span>DOWNLOAD WORKFLOW N8N (.JSON)</span>
+              </a>
 
               <div className="border border-outline bg-surface p-sm font-label text-label-sm text-on-surface flex flex-col gap-xs">
                 <span>N8N_WEBHOOK_URL=https://n8n.domain.com/webhook/...</span>
