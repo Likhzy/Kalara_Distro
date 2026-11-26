@@ -38,26 +38,20 @@ export default function handler(req: ServerlessRequest, res: ServerlessResponse)
     return;
   }
 
-  const rawWebhook =
+  const raw =
     cleanEnv(process.env.N8N_WEBHOOK_URL) || cleanEnv(process.env.N8N_CLOUD_WEBHOOK_URL);
-  const geminiKey = cleanEnv(process.env.GEMINI_API_KEY);
-  const geminiReady = Boolean(geminiKey && geminiKey !== 'MY_GEMINI_API_KEY');
 
-  if (!rawWebhook) {
-    res.status(200).json({
-      configured: false,
-      engine: geminiReady ? 'gemini' : 'none',
-    });
+  if (!raw) {
+    res.status(200).json({ configured: false });
     return;
   }
 
   let parsed: URL;
   try {
-    parsed = new URL(rawWebhook);
+    parsed = new URL(raw);
   } catch {
     res.status(200).json({
       configured: false,
-      engine: geminiReady ? 'gemini' : 'none',
       configError: 'Format N8N_WEBHOOK_URL tidak valid.',
     });
     return;
@@ -69,22 +63,27 @@ export default function handler(req: ServerlessRequest, res: ServerlessResponse)
   ) {
     res.status(200).json({
       configured: false,
-      engine: 'none',
       configError: 'URL N8N_WEBHOOK_URL tidak diizinkan.',
     });
     return;
   }
 
+  const isWorkflowUrl = parsed.pathname.includes('/workflow/');
   const isTestWebhook = parsed.pathname.includes('/webhook-test/');
+
   res.status(200).json({
     configured: true,
-    engine: 'n8n',
-    ...(isTestWebhook
+    ...(isTestWebhook ? { isTestWebhook: true } : {}),
+    ...(isWorkflowUrl
       ? {
-          isTestWebhook: true,
           configError:
-            'URL saat ini memakai /webhook-test/ (Test URL). Ganti ke Production URL (/webhook/...) dan aktifkan toggle Active di n8n Cloud.',
+            'URL yang dimasukkan adalah URL editor (/workflow/...), bukan Production Webhook URL (/webhook/...).',
         }
-      : {}),
+      : isTestWebhook
+        ? {
+            configError:
+              'URL memakai /webhook-test/ (Test URL). Ganti ke Production URL (/webhook/...) dan aktifkan toggle Active di n8n Cloud.',
+          }
+        : {}),
   });
 }

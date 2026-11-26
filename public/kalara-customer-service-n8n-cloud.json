@@ -1,0 +1,153 @@
+{
+  "name": "KALARA DISTRO — Customer Service AI Chatbot (n8n Cloud)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## PANDUAN SETUP CS AI KALARA DISTRO DI N8N CLOUD\n1. Klik 2x node **Google Gemini Chat Model** → pilih/buat Credential API Key (atau ganti node model ke OpenAI / Groq / Anthropic).\n2. *(Opsional)* Klik 2x **Webhook Customer Chat** → Authentication: **Header Auth** jika ingin menambah token keamanan.\n3. Klik tombol **Save** lalu **AKTIFKAN toggle Inactive → Active / Publish** di pojok kanan atas sampai berwarna hijau.\n4. Buka node **Webhook Customer Chat** → tab **Webhook URLs** → pilih **Production URL** (bukan Test URL) lalu salin URL `https://<workspace>.app.n8n.cloud/webhook/kalara-cs-chat`.\n5. Tempel URL tersebut ke secret **N8N_WEBHOOK_URL** di Settings > Secrets (AI Studio) atau Environment Variables (Vercel).",
+        "height": 250,
+        "width": 780,
+        "color": 4
+      },
+      "id": "c1d2e3f4-0000-4000-8000-000000000000",
+      "name": "Panduan Setup n8n Cloud",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kalara-cs-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c1d2e3f4-1111-4000-8000-000000000001",
+      "name": "Webhook Customer Chat",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        340
+      ],
+      "webhookId": "kalara-cs-chat"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body?.chatInput || $json.body?.message || $json.chatInput || $json.message }}",
+        "options": {
+          "systemMessage": "=Kamu adalah Customer Service & Stylist AI resmi **KALARA DISTRO** (\"Karya Lokal, Rasa Anak Muda\") dari Bandung.\n\nPERAN & GAYA BAHASA:\n- Jawab pertanyaan customer dengan ramah, santai, solutif, dan sopan khas anak muda Indonesia.\n- Berikan jawaban ringkas, rapi, dan langsung menjawab inti pertanyaan (maksimal 2 paragraf pendek atau 3–5 poin).\n\nINFORMASI TOKO & LAYANAN CUSTOMER:\n- Nama Brand: KALARA DISTRO\n- Alamat Offline Store: Jl. Trunojoyo No. 28, Citarum, Kec. Bandung Wetan, Kota Bandung, Jawa Barat 40115\n- Jam Operasional: Senin – Minggu, 10.00 – 21.00 WIB\n- Kanal Pemesanan Resmi: Website (Keranjang & Checkout), Shopee (shopee.co.id/kalaradistro.id), Tokopedia (tokopedia.com/kalaradistro), dan WhatsApp Order (+62 812-3456-7890)\n- Media Sosial: Instagram @kalaradistro | TikTok @kalaradistro.id\n- Metode Pembayaran Website: QRIS, Transfer Bank, dan COD Bandung (serta opsi Ambil di Toko Trunojoyo).\n- Pengiriman: Dikirim dari Bandung ke seluruh Indonesia (pesanan sebelum 16.00 WIB dikirim di hari yang sama).\n- Penukaran Ukuran: Bisa tukar ukuran dalam 3 hari setelah barang diterima selama hangtag utuh dan belum dicuci (hubungi WhatsApp Order).\n\nPANDUAN UKURAN RINGKAS (UNISEX BOXY / OVERSIZED):\n- S: Tinggi 155–165 cm, Berat 45–55 kg (LD 104 cm)\n- M: Tinggi 163–172 cm, Berat 55–65 kg (LD 110 cm)\n- L: Tinggi 170–178 cm, Berat 65–75 kg (LD 116 cm)\n- XL: Tinggi 175–183 cm, Berat 75–86 kg (LD 122 cm)\n- XXL (khusus Hoodie): Tinggi 178–190 cm, Berat 85–98 kg (LD 128 cm)\n- Celana: 28 (lingkar pinggang 74 cm), 30 (79 cm), 32 (84 cm), 34 (89 cm)\n\nKATALOG DROP 01 (READY STOCK):\n1. Kaos Grafis & Oversized (S / M / L / XL | Rp75.000 – Rp120.000):\n   - Kalara Archive Boxy Tee — Rp95.000 (Off-White / Rust Ink, Cotton Combed 20s Heavyweight 210 gsm, Boxy Oversized Fit)\n   - Bandung Youth Graphic Tee — Rp115.000 (Charcoal Washed, Cotton Combed 24s Bio-Wash, Relaxed Drop-Shoulder)\n   - Kalara Pocket Basic Tee — Rp75.000 (Warm Chalk, Cotton Combed 24s Adem, Regular Relaxed Fit)\n\n2. Hoodie Fleece (M / L / XL / XXL | Rp150.000 – Rp220.000):\n   - Kalara Heavyweight Pullover — Rp185.000 (Jet Black / Contrast Stitch, Cotton Fleece 330 gsm, Boxy Streetwear Cut)\n   - Trunojoyo Zip Hoodie — Rp215.000 (Ash Grey, Cotton Fleece 330 gsm + YKK Zipper, Oversized Fit)\n   - Daily Campus Hoodie — Rp155.000 (Sand Stone, Cotton Fleece 280 gsm, Relaxed Fit)\n\n3. Crewneck Basic (S / M / L / XL | Rp130.000 – Rp180.000):\n   - Kalara Ribbed Crewneck — Rp150.000 (Oatmeal Melange, French Terry 300 gsm, Relaxed Drop-Shoulder)\n   - Archive Stamp Sweatshirt — Rp175.000 (Deep Charcoal, Cotton Fleece 310 gsm, Boxy Fit)\n   - Studio Plain Crewneck — Rp135.000 (Forest Olive, French Terry 280 gsm, Regular Unisex)\n\n4. Kemeja Casual (S / M / L / XL | Rp100.000 – Rp160.000):\n   - Citarum Utility Workshirt — Rp135.000 (Khaki Tan, Cotton Twill Ripstop Ringan, Boxy Short Sleeve)\n   - Kalara Cuban Camp Shirt — Rp120.000 (Jet Black, Rayon Cotton Slub, Relaxed Open Collar)\n   - Campus Overshirt — Rp155.000 (Slate Blue, Cotton Oxford Heavy, Loose Layering Fit)\n\n5. Celana Pendek & Panjang (28 / 30 / 32 / 34 | Rp120.000 – Rp200.000):\n   - Kalara Wide Cargo Pants — Rp185.000 (Matte Black, Cotton Canvas 10oz, Wide Baggy Cut)\n   - Skate Relaxed Ankle Pants — Rp165.000 (Warm Beige, Stretch Cotton Twill, Loose Tapered)\n   - Utility Walkshorts — Rp125.000 (Olive Drab, Nylon Crinkle Water-Repellent, Above-Knee Relaxed)\n\n6. Topi & Aksesori (ALL SIZE | Rp45.000 – Rp75.000):\n   - Kalara 6-Panel Dad Cap — Rp65.000 (Black / Burnt Orange Embroidery, Cotton Drill + Metal Buckle)\n   - Short Fisherman Beanie — Rp55.000 (Charcoal, Acrylic Cotton Knit)\n   - Archive Crew Socks + Sticker Pack — Rp45.000 (Chalk / Black Stripe, Combed Cotton Terry, EU 38–44)\n\nKERANJANG CUSTOMER SAAT INI:\n- Jumlah item: {{ $json.body?.context?.cartItemCount ?? 0 }}\n- Isi keranjang: {{ ($json.body?.context?.cartSummary && $json.body.context.cartSummary.length > 0) ? $json.body.context.cartSummary.join(', ') : 'Masih kosong' }}\n\nATURAN PENTING:\n- Saat merekomendasikan barang, sebutkan nama artikel persis seperti di katalog agar kartu produk klik-langsung otomatis muncul di chat website.\n- Jangan mengarang produk, diskon, atau harga yang tidak ada di katalog di atas.\n- Untuk keluhan pesanan spesifik atau cek resi manual, arahkan customer menghubungi WhatsApp Order (+62 812-3456-7890)."
+        }
+      },
+      "id": "c1d2e3f4-2222-4000-8000-000000000002",
+      "name": "KALARA CS AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        520,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "c1d2e3f4-3333-4000-8000-000000000003",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        440,
+        580
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook Customer Chat').first().json.body?.sessionId || 'kalara-cs-default' }}",
+        "contextWindowLength": 10
+      },
+      "id": "c1d2e3f4-4444-4000-8000-000000000004",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        640,
+        580
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"output\": $json.output, \"sessionId\": $('Webhook Customer Chat').first().json.body?.sessionId || '' } }}",
+        "options": {}
+      },
+      "id": "c1d2e3f4-5555-4000-8000-000000000005",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        340
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Customer Chat": {
+      "main": [
+        [
+          {
+            "node": "KALARA CS AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "KALARA CS AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "KALARA CS AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KALARA CS AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

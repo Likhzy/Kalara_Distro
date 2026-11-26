@@ -4,10 +4,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
-  forwardChatToN8n,
-  getN8nStatusInfo,
-  validateChatPayload,
-} from './server/n8nProxy.ts';
+  forwardCustomerChatToN8n,
+  getN8nCloudStatus,
+  validateCustomerChatPayload,
+} from './server/n8nCloudProxy.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,17 +22,42 @@ async function startServer() {
   app.use(express.json({ limit: '32kb' }));
 
   app.get('/api/n8n/status', (_req, res) => {
-    res.json(getN8nStatusInfo());
+    res.status(200).json(getN8nCloudStatus());
+  });
+
+  app.post('/api/n8n/test', async (_req, res) => {
+    const result = await forwardCustomerChatToN8n({
+      message: 'Halo, tes koneksi dari website KALARA DISTRO.',
+      sessionId: 'kalara-connection-test',
+      context: {
+        store: 'KALARA DISTRO Bandung',
+        cartItemCount: 0,
+        cartSummary: [],
+      },
+    });
+
+    if (!result.result) {
+      res.status(result.status).json({
+        ok: false,
+        message: result.error ?? 'Koneksi ke n8n Cloud gagal.',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      ok: true,
+      message: 'Terhubung! Workflow n8n Cloud aktif dan merespons normal.',
+    });
   });
 
   app.post('/api/n8n/chat', async (req, res) => {
-    const validation = validateChatPayload(req.body);
+    const validation = validateCustomerChatPayload(req.body);
     if (!validation.data) {
       res.status(400).json({ error: validation.error ?? 'Permintaan tidak valid.' });
       return;
     }
 
-    const response = await forwardChatToN8n(validation.data);
+    const response = await forwardCustomerChatToN8n(validation.data);
     if (!response.result) {
       res.status(response.status).json({ error: response.error });
       return;

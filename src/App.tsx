@@ -12,7 +12,7 @@ import { Header } from './components/Header';
 import { ProductModal } from './components/ProductModal';
 import { CartDrawer } from './components/CartDrawer';
 import { ChannelModal } from './components/ChannelModal';
-import { N8nChatWidget } from './components/N8nChatWidget';
+import { CustomerChatWidget } from './components/CustomerChatWidget';
 
 const CART_STORAGE_KEY = 'kalara_distro_cart_v1';
 
@@ -570,8 +570,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Self-Hosted n8n AI Chatbot Widget */}
-      <N8nChatWidget
+      {/* n8n Cloud Customer Service AI Chatbot */}
+      <CustomerChatWidget
         categories={CATALOG_CATEGORIES}
         cart={cart}
         onSelectCategory={handleOpenCategory}
