@@ -1,0 +1,6 @@
+{
+  "name": "KALARA DISTRO — Karya Lokal, Rasa Anak Muda",
+  "description": "Lookbook dan katalog streetwear lokal KALARA DISTRO. Desain modern, bahan nyaman, dan harga ramah kantong untuk pelajar & mahasiswa.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
