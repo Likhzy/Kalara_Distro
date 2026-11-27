@@ -13,11 +13,15 @@ export interface CustomerChatRequestBody {
 export interface N8nCloudReply {
   reply: string;
   sessionId: string;
+  usedTestWebhook?: boolean;
 }
 
 export interface N8nCloudStatus {
   configured: boolean;
+  isN8nCloudHost?: boolean;
+  matchesTemplatePath?: boolean;
   isTestWebhook?: boolean;
+  hasAuthHeader?: boolean;
   configError?: string;
 }
 
@@ -88,11 +92,19 @@ export function getValidatedWebhookUrl(): { url: URL | null; error?: string } {
 
 export function getN8nCloudStatus(): N8nCloudStatus {
   const { url, error } = getValidatedWebhookUrl();
+  const normalizedPath = url ? url.pathname.replace(/\/+$/, '') : '';
+  const isN8nCloudHost = url ? url.hostname.toLowerCase().endsWith('.n8n.cloud') : false;
   const isTestWebhook = url ? url.pathname.includes('/webhook-test/') : false;
   const isWorkflowEditorUrl = url ? url.pathname.includes('/workflow/') : false;
   const isMissingWebhookPath = url
     ? !url.pathname.includes('/webhook/') && !url.pathname.includes('/webhook-test/')
     : false;
+  const matchesTemplatePath =
+    normalizedPath.endsWith('/kalara-cs-chat') || normalizedPath.endsWith('/kalara-ai-chat');
+  const hasAuthHeader = Boolean(
+    cleanEnvValue(process.env.N8N_AUTH_HEADER_NAME) &&
+      cleanEnvValue(process.env.N8N_AUTH_HEADER_VALUE)
+  );
 
   let configError = error;
   if (!configError && isWorkflowEditorUrl) {
@@ -108,6 +120,7 @@ export function getN8nCloudStatus(): N8nCloudStatus {
 
   return {
     configured: Boolean(url),
+    ...(url ? { isN8nCloudHost, matchesTemplatePath, hasAuthHeader } : {}),
     ...(isTestWebhook ? { isTestWebhook: true } : {}),
     ...(configError ? { configError } : {}),
   };
@@ -347,20 +360,28 @@ export async function forwardCustomerChatToN8n(
       }
     }
 
-    // Auto-recover if user imported a newer/older KALARA template path or pasted /webhook-test/ on the same n8n host
+    // Auto-recover if user imported a newer/older KALARA template path, had trailing slash, or is testing via Execute Workflow
+    let usedTestWebhook = url.pathname.includes('/webhook-test/');
     if (upstream.status === 404) {
       const normalizedPath = url.pathname.replace(/\/+$/, '');
       const altPathSet = new Set<string>();
+      if (normalizedPath && normalizedPath !== url.pathname) {
+        altPathSet.add(normalizedPath);
+      }
       if (url.pathname.includes('/webhook-test/')) {
-        altPathSet.add(url.pathname.replace('/webhook-test/', '/webhook/'));
+        altPathSet.add(normalizedPath.replace('/webhook-test/', '/webhook/'));
       }
       altPathSet.add('/webhook/kalara-cs-chat');
       altPathSet.add('/webhook/kalara-ai-chat');
-      if (url.pathname.includes('/webhook/') && !normalizedPath.endsWith('/chat')) {
+      if (normalizedPath.includes('/webhook/') && !normalizedPath.endsWith('/chat')) {
         altPathSet.add(`${normalizedPath}/chat`);
       }
+      // Finally try Test Webhook URLs in case the user clicked "Execute workflow" in n8n Cloud canvas
+      if (normalizedPath.includes('/webhook/')) {
+        altPathSet.add(normalizedPath.replace('/webhook/', '/webhook-test/'));
+      }
+      altPathSet.add('/webhook-test/kalara-cs-chat');
       altPathSet.delete(url.pathname);
-      altPathSet.delete(normalizedPath);
 
       for (const altPathname of altPathSet) {
         const altUrl = new URL(url.toString());
@@ -375,6 +396,7 @@ export async function forwardCustomerChatToN8n(
           upstream = retryAlt;
           contentType = retryAlt.headers.get('content-type') ?? '';
           rawText = await retryAlt.text();
+          usedTestWebhook = altPathname.includes('/webhook-test/');
           break;
         }
       }
@@ -388,7 +410,7 @@ export async function forwardCustomerChatToN8n(
         return {
           status: 502,
           error: isTestPath
-            ? `n8n Cloud merespons 404 (Test URL tidak aktif). Ganti N8N_WEBHOOK_URL ke Production URL (/webhook/...) lalu aktifkan toggle Active di n8n Cloud.${detail ? ` (${detail})` : ''}`
+            ? `n8n Cloud merespons 404 (Test URL tidak aktif). Ganti N8N_WEBHOOK_URL ke Production URL (/webhook/...) lalu aktifkan toggle Active / Publish di n8n Cloud.${detail ? ` (${detail})` : ''}`
             : `n8n Cloud merespons 404 (Webhook belum aktif). Buka editor n8n Cloud → klik Save → nyalakan toggle Active / Publish hingga hijau.${detail ? ` (${detail})` : ''}`,
         };
       }
@@ -422,6 +444,7 @@ export async function forwardCustomerChatToN8n(
       result: {
         reply,
         sessionId: payload.sessionId,
+        ...(usedTestWebhook ? { usedTestWebhook: true } : {}),
       },
     };
   } catch (err) {

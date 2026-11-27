@@ -248,16 +248,22 @@ export default async function handler(req: ServerlessRequest, res: ServerlessRes
     if (upstream.status === 404) {
       const normalizedPath = parsedUrl.pathname.replace(/\/+$/, '');
       const altPathSet = new Set<string>();
+      if (normalizedPath && normalizedPath !== parsedUrl.pathname) {
+        altPathSet.add(normalizedPath);
+      }
       if (parsedUrl.pathname.includes('/webhook-test/')) {
-        altPathSet.add(parsedUrl.pathname.replace('/webhook-test/', '/webhook/'));
+        altPathSet.add(normalizedPath.replace('/webhook-test/', '/webhook/'));
       }
       altPathSet.add('/webhook/kalara-cs-chat');
       altPathSet.add('/webhook/kalara-ai-chat');
-      if (parsedUrl.pathname.includes('/webhook/') && !normalizedPath.endsWith('/chat')) {
+      if (normalizedPath.includes('/webhook/') && !normalizedPath.endsWith('/chat')) {
         altPathSet.add(`${normalizedPath}/chat`);
       }
+      if (normalizedPath.includes('/webhook/')) {
+        altPathSet.add(normalizedPath.replace('/webhook/', '/webhook-test/'));
+      }
+      altPathSet.add('/webhook-test/kalara-cs-chat');
       altPathSet.delete(parsedUrl.pathname);
-      altPathSet.delete(normalizedPath);
 
       for (const altPathname of altPathSet) {
         const altUrl = new URL(parsedUrl.toString());

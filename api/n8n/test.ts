@@ -196,19 +196,26 @@ export default async function handler(req: ServerlessRequest, res: ServerlessRes
       }
     }
 
+    let usedTestWebhook = parsedUrl.pathname.includes('/webhook-test/');
     if (upstream.status === 404) {
       const normalizedPath = parsedUrl.pathname.replace(/\/+$/, '');
       const altPathSet = new Set<string>();
+      if (normalizedPath && normalizedPath !== parsedUrl.pathname) {
+        altPathSet.add(normalizedPath);
+      }
       if (parsedUrl.pathname.includes('/webhook-test/')) {
-        altPathSet.add(parsedUrl.pathname.replace('/webhook-test/', '/webhook/'));
+        altPathSet.add(normalizedPath.replace('/webhook-test/', '/webhook/'));
       }
       altPathSet.add('/webhook/kalara-cs-chat');
       altPathSet.add('/webhook/kalara-ai-chat');
-      if (parsedUrl.pathname.includes('/webhook/') && !normalizedPath.endsWith('/chat')) {
+      if (normalizedPath.includes('/webhook/') && !normalizedPath.endsWith('/chat')) {
         altPathSet.add(`${normalizedPath}/chat`);
       }
+      if (normalizedPath.includes('/webhook/')) {
+        altPathSet.add(normalizedPath.replace('/webhook/', '/webhook-test/'));
+      }
+      altPathSet.add('/webhook-test/kalara-cs-chat');
       altPathSet.delete(parsedUrl.pathname);
-      altPathSet.delete(normalizedPath);
 
       for (const altPathname of altPathSet) {
         const altUrl = new URL(parsedUrl.toString());
@@ -222,6 +229,7 @@ export default async function handler(req: ServerlessRequest, res: ServerlessRes
         if (retryAlt.status !== 404) {
           upstream = retryAlt;
           rawText = await retryAlt.text();
+          usedTestWebhook = altPathname.includes('/webhook-test/');
           break;
         }
       }
@@ -272,7 +280,9 @@ export default async function handler(req: ServerlessRequest, res: ServerlessRes
 
     res.status(200).json({
       ok: true,
-      message: 'Terhubung! Workflow n8n Cloud aktif dan merespons normal.',
+      message: usedTestWebhook
+        ? 'Terhubung via mode Test! Jangan lupa nyalakan toggle Active / Publish di n8n Cloud agar aktif permanen.'
+        : 'Terhubung! Workflow n8n Cloud aktif dan merespons normal.',
     });
   } catch (err) {
     if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {

@@ -68,10 +68,17 @@ export default function handler(req: ServerlessRequest, res: ServerlessResponse)
     return;
   }
 
+  const normalizedPath = parsed.pathname.replace(/\/+$/, '');
+  const isN8nCloudHost = parsed.hostname.toLowerCase().endsWith('.n8n.cloud');
   const isWorkflowUrl = parsed.pathname.includes('/workflow/');
   const isTestWebhook = parsed.pathname.includes('/webhook-test/');
   const isMissingWebhookPath =
     !parsed.pathname.includes('/webhook/') && !parsed.pathname.includes('/webhook-test/');
+  const matchesTemplatePath =
+    normalizedPath.endsWith('/kalara-cs-chat') || normalizedPath.endsWith('/kalara-ai-chat');
+  const hasAuthHeader = Boolean(
+    cleanEnv(process.env.N8N_AUTH_HEADER_NAME) && cleanEnv(process.env.N8N_AUTH_HEADER_VALUE)
+  );
 
   const configError = isWorkflowUrl
     ? 'URL yang dimasukkan adalah URL editor (/workflow/...), bukan Production Webhook URL (/webhook/...).'
@@ -83,6 +90,9 @@ export default function handler(req: ServerlessRequest, res: ServerlessResponse)
 
   res.status(200).json({
     configured: true,
+    isN8nCloudHost,
+    matchesTemplatePath,
+    hasAuthHeader,
     ...(isTestWebhook ? { isTestWebhook: true } : {}),
     ...(configError ? { configError } : {}),
   });

@@ -46,7 +46,9 @@ async function startServer() {
 
     res.status(200).json({
       ok: true,
-      message: 'Terhubung! Workflow n8n Cloud aktif dan merespons normal.',
+      message: result.result.usedTestWebhook
+        ? 'Terhubung via mode Test! Jangan lupa nyalakan toggle Active / Publish di n8n Cloud agar aktif permanen.'
+        : 'Terhubung! Workflow n8n Cloud aktif dan merespons normal.',
     });
   });
 

@@ -147,6 +147,7 @@ export function CustomerChatWidget({
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [n8nConfigured, setN8nConfigured] = useState<boolean | null>(null);
+  const [matchesTemplatePath, setMatchesTemplatePath] = useState<boolean | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
   const [showGuide, setShowGuide] = useState(false);
   const [copiedPayload, setCopiedPayload] = useState(false);
@@ -172,15 +173,24 @@ export function CustomerChatWidget({
     let cancelled = false;
     fetch('/api/n8n/status')
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Status check failed'))))
-      .then((data: { configured?: boolean; configError?: string }) => {
-        if (cancelled) return;
-        const configured = Boolean(data.configured);
-        setN8nConfigured(configured);
-        setConfigError(data.configError ?? null);
-        if (!configured) {
-          setShowGuide(true);
+      .then(
+        (data: {
+          configured?: boolean;
+          matchesTemplatePath?: boolean;
+          configError?: string;
+        }) => {
+          if (cancelled) return;
+          const configured = Boolean(data.configured);
+          setN8nConfigured(configured);
+          setMatchesTemplatePath(
+            typeof data.matchesTemplatePath === 'boolean' ? data.matchesTemplatePath : null
+          );
+          setConfigError(data.configError ?? null);
+          if (!configured) {
+            setShowGuide(true);
+          }
         }
-      })
+      )
       .catch(() => {
         if (!cancelled) {
           setN8nConfigured(false);
@@ -419,6 +429,14 @@ export function CustomerChatWidget({
 
               {configError && (
                 <p className="font-body text-label-md text-accent">{configError}</p>
+              )}
+
+              {!configError && n8nConfigured && matchesTemplatePath === false && (
+                <p className="font-body text-label-md text-on-surface-variant">
+                  Catatan: Path pada N8N_WEBHOOK_URL berbeda dari path template{' '}
+                  <code>/webhook/kalara-cs-chat</code>. Pastikan sesuai dengan Production URL
+                  workflow yang sedang aktif di n8n Cloud.
+                </p>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-xs">
