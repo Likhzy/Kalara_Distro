@@ -43,7 +43,7 @@ function sanitizeUpstreamMessage(raw: string): string {
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 180);
+    .slice(0, 300);
 }
 
 function extractErrorDetails(rawText: string): string {
@@ -245,22 +245,34 @@ export default async function handler(req: ServerlessRequest, res: ServerlessRes
       }
     }
 
-    if (
-      upstream.status === 404 &&
-      parsedUrl.pathname.includes('/webhook/') &&
-      !parsedUrl.pathname.endsWith('/chat')
-    ) {
-      const chatUrl = new URL(parsedUrl.toString());
-      chatUrl.pathname = `${chatUrl.pathname.replace(/\/+$/, '')}/chat`;
-      const retryChat = await fetch(chatUrl.toString(), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(n8nBody),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-      if (retryChat.ok) {
-        upstream = retryChat;
-        rawText = await retryChat.text();
+    if (upstream.status === 404) {
+      const normalizedPath = parsedUrl.pathname.replace(/\/+$/, '');
+      const altPathSet = new Set<string>();
+      if (parsedUrl.pathname.includes('/webhook-test/')) {
+        altPathSet.add(parsedUrl.pathname.replace('/webhook-test/', '/webhook/'));
+      }
+      altPathSet.add('/webhook/kalara-cs-chat');
+      altPathSet.add('/webhook/kalara-ai-chat');
+      if (parsedUrl.pathname.includes('/webhook/') && !normalizedPath.endsWith('/chat')) {
+        altPathSet.add(`${normalizedPath}/chat`);
+      }
+      altPathSet.delete(parsedUrl.pathname);
+      altPathSet.delete(normalizedPath);
+
+      for (const altPathname of altPathSet) {
+        const altUrl = new URL(parsedUrl.toString());
+        altUrl.pathname = altPathname;
+        const retryAlt = await fetch(altUrl.toString(), {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(n8nBody),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+        if (retryAlt.status !== 404) {
+          upstream = retryAlt;
+          rawText = await retryAlt.text();
+          break;
+        }
       }
     }
 

@@ -70,20 +70,20 @@ export default function handler(req: ServerlessRequest, res: ServerlessResponse)
 
   const isWorkflowUrl = parsed.pathname.includes('/workflow/');
   const isTestWebhook = parsed.pathname.includes('/webhook-test/');
+  const isMissingWebhookPath =
+    !parsed.pathname.includes('/webhook/') && !parsed.pathname.includes('/webhook-test/');
+
+  const configError = isWorkflowUrl
+    ? 'URL yang dimasukkan adalah URL editor (/workflow/...), bukan Production Webhook URL (/webhook/...).'
+    : isTestWebhook
+      ? 'URL memakai /webhook-test/ (Test URL). Ganti ke Production URL (/webhook/...) dan aktifkan toggle Active di n8n Cloud.'
+      : isMissingWebhookPath
+        ? 'N8N_WEBHOOK_URL belum mengandung path /webhook/.... Buka node Webhook Customer Chat di n8n Cloud → salin Production URL.'
+        : undefined;
 
   res.status(200).json({
     configured: true,
     ...(isTestWebhook ? { isTestWebhook: true } : {}),
-    ...(isWorkflowUrl
-      ? {
-          configError:
-            'URL yang dimasukkan adalah URL editor (/workflow/...), bukan Production Webhook URL (/webhook/...).',
-        }
-      : isTestWebhook
-        ? {
-            configError:
-              'URL memakai /webhook-test/ (Test URL). Ganti ke Production URL (/webhook/...) dan aktifkan toggle Active di n8n Cloud.',
-          }
-        : {}),
+    ...(configError ? { configError } : {}),
   });
 }

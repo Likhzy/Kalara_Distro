@@ -90,6 +90,9 @@ export function getN8nCloudStatus(): N8nCloudStatus {
   const { url, error } = getValidatedWebhookUrl();
   const isTestWebhook = url ? url.pathname.includes('/webhook-test/') : false;
   const isWorkflowEditorUrl = url ? url.pathname.includes('/workflow/') : false;
+  const isMissingWebhookPath = url
+    ? !url.pathname.includes('/webhook/') && !url.pathname.includes('/webhook-test/')
+    : false;
 
   let configError = error;
   if (!configError && isWorkflowEditorUrl) {
@@ -98,6 +101,9 @@ export function getN8nCloudStatus(): N8nCloudStatus {
   } else if (!configError && isTestWebhook) {
     configError =
       'URL memakai /webhook-test/ (Test URL). Ganti ke Production URL (/webhook/...) dan aktifkan toggle Active di n8n Cloud.';
+  } else if (!configError && isMissingWebhookPath) {
+    configError =
+      'N8N_WEBHOOK_URL belum mengandung path /webhook/.... Buka node Webhook Customer Chat di n8n Cloud → salin Production URL.';
   }
 
   return {
@@ -214,7 +220,7 @@ function sanitizeUpstreamMessage(raw: string): string {
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 180);
+    .slice(0, 300);
 }
 
 function extractErrorDetails(rawText: string): string {
@@ -334,31 +340,43 @@ export async function forwardCustomerChatToN8n(
         headers: getHeaders,
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
-      if (retryGet.ok) {
+      if (retryGet.status !== 404) {
         upstream = retryGet;
         contentType = retryGet.headers.get('content-type') ?? '';
         rawText = await retryGet.text();
       }
     }
 
-    // Auto-recover if user used n8n Chat Trigger and omitted '/chat'
-    if (
-      upstream.status === 404 &&
-      url.pathname.includes('/webhook/') &&
-      !url.pathname.endsWith('/chat')
-    ) {
-      const chatUrl = new URL(url.toString());
-      chatUrl.pathname = `${chatUrl.pathname.replace(/\/+$/, '')}/chat`;
-      const retryChat = await fetch(chatUrl.toString(), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(n8nBody),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-      if (retryChat.ok) {
-        upstream = retryChat;
-        contentType = retryChat.headers.get('content-type') ?? '';
-        rawText = await retryChat.text();
+    // Auto-recover if user imported a newer/older KALARA template path or pasted /webhook-test/ on the same n8n host
+    if (upstream.status === 404) {
+      const normalizedPath = url.pathname.replace(/\/+$/, '');
+      const altPathSet = new Set<string>();
+      if (url.pathname.includes('/webhook-test/')) {
+        altPathSet.add(url.pathname.replace('/webhook-test/', '/webhook/'));
+      }
+      altPathSet.add('/webhook/kalara-cs-chat');
+      altPathSet.add('/webhook/kalara-ai-chat');
+      if (url.pathname.includes('/webhook/') && !normalizedPath.endsWith('/chat')) {
+        altPathSet.add(`${normalizedPath}/chat`);
+      }
+      altPathSet.delete(url.pathname);
+      altPathSet.delete(normalizedPath);
+
+      for (const altPathname of altPathSet) {
+        const altUrl = new URL(url.toString());
+        altUrl.pathname = altPathname;
+        const retryAlt = await fetch(altUrl.toString(), {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(n8nBody),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+        if (retryAlt.status !== 404) {
+          upstream = retryAlt;
+          contentType = retryAlt.headers.get('content-type') ?? '';
+          rawText = await retryAlt.text();
+          break;
+        }
       }
     }
 
